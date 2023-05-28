@@ -1,0 +1,230 @@
+-- Membuat tabel
+CREATE TABLE customers (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100),
+  email VARCHAR(100)
+);
+
+CREATE TABLE laptops (
+  id SERIAL PRIMARY KEY,
+  brand VARCHAR(100),
+  model VARCHAR(100),
+  price NUMERIC(15, 2)
+);
+
+CREATE TABLE orders (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER REFERENCES customers (id),
+  laptop_id INTEGER REFERENCES laptops (id),
+  quantity INTEGER,
+  order_date DATE
+);
+
+CREATE TABLE order_details (
+  id INTEGER,
+  customer_name VARCHAR(100),
+  brand VARCHAR(100),
+  model VARCHAR(100),
+  quantity INTEGER,
+  order_date DATE
+);
+
+-- Membuat trigger untuk mengupdate tabel order_details
+CREATE OR REPLACE FUNCTION update_order_details()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+    DELETE FROM order_details WHERE id = NEW.id;
+    INSERT INTO order_details (id, customer_name, brand, model, quantity, order_date)
+    SELECT orders.id, customers.name AS customer_name, laptops.brand, laptops.model, orders.quantity, orders.order_date
+    FROM orders
+    INNER JOIN customers ON orders.customer_id = customers.id
+    INNER JOIN laptops ON orders.laptop_id = laptops.id
+    WHERE orders.id = NEW.id;
+  END IF;
+  
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM order_details WHERE id = OLD.id;
+  END IF;
+  
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_order_details_trigger
+AFTER INSERT OR UPDATE OR DELETE ON orders
+FOR EACH ROW
+EXECUTE FUNCTION update_order_details();
+
+-- Stored procedures
+CREATE OR REPLACE PROCEDURE add_customer(
+  customer_name VARCHAR(100),
+  customer_email VARCHAR(100)
+)
+AS $$
+BEGIN
+  INSERT INTO customers (name, email)
+  VALUES (customer_name, customer_email);
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE add_laptop(
+  laptop_brand VARCHAR(100),
+  laptop_model VARCHAR(100),
+  laptop_price NUMERIC(10, 2)
+)
+AS $$
+BEGIN
+  INSERT INTO laptops (brand, model, price)
+  VALUES (laptop_brand, laptop_model, laptop_price);
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE add_order(
+  customer_id INTEGER,
+  laptop_id INTEGER,
+  order_quantity INTEGER,
+  order_date DATE
+)
+AS $$
+BEGIN
+  INSERT INTO orders (customer_id, laptop_id, quantity, order_date)
+  VALUES (customer_id, laptop_id, order_quantity, order_date);
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE update_customer(
+  customer_id INTEGER,
+  customer_name VARCHAR(100),
+  customer_email VARCHAR(100)
+)
+AS $$
+BEGIN
+  UPDATE customers
+  SET name = customer_name, email = customer_email
+  WHERE id = customer_id;
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE update_laptop(
+  laptop_id INTEGER,
+  laptop_brand VARCHAR(100),
+  laptop_model VARCHAR(100),
+  laptop_price NUMERIC(10, 2)
+)
+AS $$
+BEGIN
+  UPDATE laptops
+  SET brand = laptop_brand, model = laptop_model, price = laptop_price
+  WHERE id = laptop_id;
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE delete_order(
+  order_id INTEGER
+)
+AS $$
+BEGIN
+ DELETE FROM orders
+  WHERE id = order_id;
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+--menghapus data tabel laptop
+CREATE OR REPLACE PROCEDURE delete_laptop(
+  laptop_id INTEGER
+)
+AS $$
+BEGIN
+  DELETE FROM laptops
+  WHERE id = laptops_id;
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+--menghapus data tabel customer
+CREATE OR REPLACE PROCEDURE delete_customer(
+  customer_id INTEGER
+)
+AS $$
+BEGIN
+  DELETE FROM customers
+  WHERE id = customer_id;
+  
+  COMMIT;
+END;
+$$ LANGUAGE plpgsql;
+
+--menghapus data dari tabel order_details
+CREATE OR REPLACE PROCEDURE delete_order_detail(order_id INTEGER)
+AS $$
+BEGIN
+  DELETE FROM order_details WHERE id = order_id;
+END;
+$$ LANGUAGE plpgsql;
+
+
+--memanggil procedure
+--menambah data
+CALL add_customer('Kakasep', 'kakasep46@gmail.com');
+CALL add_laptop('LENOVO','THINKPAD',5000000);
+CALL add_order(2,2,4, '2023-05-28');
+
+--mengedit data
+CALL update_customer(1,'narutong', 'narutong46@gmail.com');
+CALL update_laptop(1,'ASUS','STRIX',30000000);
+
+--menghapus data
+CALL delete_customer;
+CALL delete_laptop;
+CALL delete_order(2);
+CALL delete_order_detail(1);
+
+
+--membuat tabel baru untuk melihat detail dari tabel inner join
+CREATE TABLE order_details AS
+SELECT orders.id, customers.name AS customer_name, laptops.brand, laptops.model, orders.quantity, orders.order_date
+FROM orders
+INNER JOIN customers ON orders.customer_id = customers.id
+INNER JOIN laptops ON orders.laptop_id = laptops.id;
+
+CREATE OR REPLACE PROCEDURE get_order_details()
+AS $$
+DECLARE
+  result_table TABLE (id INTEGER, name VARCHAR(100), brand VARCHAR(100), model VARCHAR(100), quantity INTEGER, order_date DATE);
+BEGIN
+  SELECT orders.id, customers.name, laptops.brand, laptops.model, orders.quantity, orders.order_date
+  INTO result_table
+  FROM orders
+  INNER JOIN customers ON orders.customer_id = customers.id
+  INNER JOIN laptops ON orders.laptop_id = laptops.id;
+  
+  -- Tampilkan hasil data
+  FOR row IN (SELECT * FROM result_table)
+  LOOP
+    RAISE NOTICE 'ID: %, Name: %, Brand: %, Model: %, Quantity: %, Order Date: %',
+                 row.id, row.name, row.brand, row.model, row.quantity, row.order_date;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+
+--melihat data tabel
+select * from customers
+select * from laptops
+select * from orders
+select * from order_details
+
